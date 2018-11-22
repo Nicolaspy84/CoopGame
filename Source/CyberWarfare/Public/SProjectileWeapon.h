@@ -7,7 +7,7 @@
 #include "SProjectileWeapon.generated.h"
 
 /**
- * 
+ * Grenade launcher inherited from classic weapon
  */
 UCLASS()
 class CYBERWARFARE_API ASProjectileWeapon : public ASWeapon

@@ -5,6 +5,7 @@
 
 void ASProjectileWeapon::Fire()
 {
+
 	AActor* MyOwner = GetOwner();
 	if (MyOwner && ProjectileClass)
 	{
