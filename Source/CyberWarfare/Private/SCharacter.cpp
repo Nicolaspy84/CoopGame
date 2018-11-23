@@ -9,32 +9,74 @@
 #include "CyberWarfare.h"
 #include "../public/Components/SHealthComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Components/SkeletalMeshComponent.h"
 
 // Sets default values
 ASCharacter::ASCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Init names for sockets
+	WeaponAttachSocketName = "WeaponSocket";
+	HeadAttachSocketName = "HeadSocket";
+
+	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-    
-    SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComp"));
-    SpringArmComp->SetupAttachment(RootComponent);
-    SpringArmComp->bUsePawnControlRotation = true;
 
-	GetMovementComponent()->GetNavAgentPropertiesRef().bCanCrouch = true;
-
+	// Set size for collision capsule and collision params
+	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 	GetCapsuleComponent()->SetCollisionResponseToChannel(COLLISION_WEAPON, ECR_Ignore);
 
+	// Set our turn rates for input
+	BaseTurnRate = 45.f;
+	BaseLookUpRate = 45.f;
+
+	// Attach camera to our FPS mesh
+	// Create a CameraComponent	
+	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComp"));
+	CameraComp->bUsePawnControlRotation = true;
+	CameraComp->SetupAttachment(GetMesh(), HeadAttachSocketName);
+
+	// Enable the possibility to crouch
+	GetMovementComponent()->GetNavAgentPropertiesRef().bCanCrouch = true;
+
+	// Init health component
 	HealthComp = CreateDefaultSubobject<USHealthComponent>(TEXT("HealthComp"));
-    
-    CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComp"));
-    CameraComp->SetupAttachment(SpringArmComp);
-
-	ZoomedFOV = 65.f;
-	ZoomInterSpeed = 20.f;
-
-	WeaponAttachSocketName = "WeaponSocket";
-
 }
+
+
+// Called to bind functionality to input
+void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
+{
+	// Call the overwritten function
+	Super::SetupPlayerInputComponent(PlayerInputComponent);
+
+	// Bind movement events
+	PlayerInputComponent->BindAxis("MoveForward", this, &ASCharacter::MoveForward);
+	PlayerInputComponent->BindAxis("MoveRight", this, &ASCharacter::MoveRight);
+
+	// We have 2 versions of the rotation bindings to handle different kinds of devices differently
+	// "turn" handles devices that provide an absolute delta, such as a mouse
+	// "turnrate" is for devices that we choose to treat as a rate of change, such as an analog joystick
+	PlayerInputComponent->BindAxis("Turn", this, &APawn::AddControllerYawInput);
+	PlayerInputComponent->BindAxis("TurnRate", this, &ASCharacter::TurnAtRate);
+	PlayerInputComponent->BindAxis("LookUp", this, &APawn::AddControllerPitchInput);
+	PlayerInputComponent->BindAxis("LookUpRate", this, &ASCharacter::LookUpAtRate);
+
+	// Bind crouch
+	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ASCharacter::BeginCrouch);
+	PlayerInputComponent->BindAction("Crouch", IE_Released, this, &ASCharacter::EndCrouch);
+
+	// Bind jump
+	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
+
+	// Bind zoom (aim down)
+	PlayerInputComponent->BindAction("Zoom", IE_Pressed, this, &ASCharacter::BeginZoom);
+	PlayerInputComponent->BindAction("Zoom", IE_Released, this, &ASCharacter::EndZoom);
+
+	// Bind primary fire
+	PlayerInputComponent->BindAction("PrimaryFire", IE_Pressed, this, &ASCharacter::StartFire);
+	PlayerInputComponent->BindAction("PrimaryFire", IE_Released, this, &ASCharacter::StopFire);
+}
+
 
 // Called when the game starts or when spawned
 void ASCharacter::BeginPlay()
@@ -56,11 +98,23 @@ void ASCharacter::BeginPlay()
 		}
 	}
 
-	
-
 	HealthComp->OnHealthChanged.AddDynamic(this, &ASCharacter::OnHealthChanged);
 }
 
+
+// Called every frame
+void ASCharacter::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+
+	if (Role == ROLE_Authority)
+	{
+		SetLookRotation(GetControlRotation());
+	}
+}
+
+
+// Called whenever our life total is affected
 void ASCharacter::OnHealthChanged(USHealthComponent * HealthComponent, float Health, float HealthDelta, const UDamageType * DamageType, AController * InstigatedBy, AActor * DamageCauser)
 {
 	if (Health <= 0.f && !bDied)
@@ -73,46 +127,11 @@ void ASCharacter::OnHealthChanged(USHealthComponent * HealthComponent, float Hea
 
 		DetachFromControllerPendingDestroy();
 
+		CurrentWeapon->SetLifeSpan(10.f);
 		SetLifeSpan(10.f);
 	}
 }
 
-// Called every frame
-void ASCharacter::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-	float TargetFOV = bWantsToZoom ? ZoomedFOV : DefaultFOV;
-
-	float NewFOV = FMath::FInterpTo(CameraComp->FieldOfView, TargetFOV, DeltaTime, ZoomInterSpeed);
-
-	CameraComp->SetFieldOfView(NewFOV);
-
-}
-
-// Called to bind functionality to input
-void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
-{
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-    
-    PlayerInputComponent->BindAxis("MoveForward", this, &ASCharacter::MoveForward);
-    PlayerInputComponent->BindAxis("MoveRight", this, &ASCharacter::MoveRight);
-    
-    PlayerInputComponent->BindAxis("LookUp", this, &ASCharacter::AddControllerPitchInput);
-    PlayerInputComponent->BindAxis("Turn", this, &ASCharacter::AddControllerYawInput);
-
-	PlayerInputComponent->BindAction("Crouch", IE_Pressed, this, &ASCharacter::BeginCrouch);
-	PlayerInputComponent->BindAction("Crouch", IE_Released, this, &ASCharacter::EndCrouch);
-
-	PlayerInputComponent->BindAction("Jump", IE_Pressed, this, &ACharacter::Jump);
-
-	PlayerInputComponent->BindAction("Zoom", IE_Pressed, this, &ASCharacter::BeginZoom);
-	PlayerInputComponent->BindAction("Zoom", IE_Released, this, &ASCharacter::EndZoom);
-
-	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ASCharacter::StartFire);
-	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ASCharacter::StopFire);
-
-}
 
 FVector ASCharacter::GetPawnViewLocation() const
 {
@@ -124,54 +143,101 @@ FVector ASCharacter::GetPawnViewLocation() const
 	return Super::GetPawnViewLocation();
 }
 
-void ASCharacter::MoveForward(float value) { 
-    AddMovementInput(GetActorForwardVector() * value);
-}
-
-void ASCharacter::MoveRight(float value) { 
-    AddMovementInput(GetActorRightVector() * value);
-}
 
 void ASCharacter::BeginCrouch()
 {
 	Crouch();
 }
 
+
 void ASCharacter::EndCrouch()
 {
 	UnCrouch();
 }
+
 
 void ASCharacter::BeginZoom()
 {
 	bWantsToZoom = true;
 }
 
+
 void ASCharacter::EndZoom()
 {
 	bWantsToZoom = false;
 }
 
+
 void ASCharacter::StartFire()
 {
 	if (CurrentWeapon)
 	{
+		bIsFiring = true;
 		CurrentWeapon->StartFire();
 	}
 }
+
 
 void ASCharacter::StopFire()
 {
 	if (CurrentWeapon)
 	{
+		bIsFiring = false;
 		CurrentWeapon->StopFire();
 	}
 }
 
+
+void ASCharacter::SetLookRotation_Implementation(FRotator Rotation)
+{
+	if (!IsLocallyControlled())
+	{
+		LookRotation = Rotation;
+	}
+}
+
+
+void ASCharacter::MoveForward(float Value)
+{
+	if (Value != 0.0f)
+	{
+		// Add movement in that direction
+		AddMovementInput(GetActorForwardVector(), Value);
+	}
+}
+
+
+void ASCharacter::MoveRight(float Value)
+{
+	if (Value != 0.0f)
+	{
+		// Add movement in that direction
+		AddMovementInput(GetActorRightVector(), Value);
+	}
+}
+
+
+void ASCharacter::TurnAtRate(float Rate)
+{
+	// Calculate delta for this frame from the rate information
+	AddControllerYawInput(Rate * BaseTurnRate * GetWorld()->GetDeltaSeconds());
+}
+
+
+void ASCharacter::LookUpAtRate(float Rate)
+{
+	// Calculate delta for this frame from the rate information
+	AddControllerPitchInput(Rate * BaseLookUpRate * GetWorld()->GetDeltaSeconds());
+}
+
+
+// Called to replicate objects/variables
 void ASCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ASCharacter, CurrentWeapon);
 	DOREPLIFETIME(ASCharacter, bDied);
+	DOREPLIFETIME(ASCharacter, bWantsToZoom);
+	DOREPLIFETIME(ASCharacter, bIsFiring);
 }

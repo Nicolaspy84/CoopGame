@@ -10,6 +10,7 @@ class UCameraComponent;
 class USpringArmComponent;
 class ASWeapon;
 class USHealthComponent;
+class USkeletalMeshComponent;
 
 UCLASS()
 class CYBERWARFARE_API ASCharacter : public ACharacter
@@ -20,71 +21,112 @@ public:
 	// Sets default values for this character's properties
 	ASCharacter();
 
+	/** Called every frame */
+	virtual void Tick(float DeltaTime) override;
+
+	/** Called to bind functionality to input */
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	/** Returns the view location of the pawn (the "center" of the eyes) */
+	virtual FVector GetPawnViewLocation() const override;
+
 protected:
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
     
-    void MoveForward(float value);
-    
-    void MoveRight(float value);
+	/** Handles moving forward/backward */
+	void MoveForward(float Val);
 
+	/** Handles strafing movement, left and right */
+	void MoveRight(float Val);
+
+	/**
+	 * Called via input to turn at a given rate.
+	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
+	 */
+	void TurnAtRate(float Rate);
+
+	/**
+	 * Called via input to turn look up/down at a given rate.
+	 * @param Rate	This is a normalized rate, i.e. 1.0 means 100% of desired turn rate
+	 */
+	void LookUpAtRate(float Rate);
+
+	/** Handles crouching */
 	void BeginCrouch();
 
+	/** Handles uncrouching */
 	void EndCrouch();
 
+	/** Handles aiming */
 	void BeginZoom();
 
+	/** Handles unaiming */
 	void EndZoom();
 
+	/** Handles starting fire (useful for auto weapons) */
 	void StartFire();
 
+	/** Handles ending fire (useful for auto weapons) */
 	void StopFire();
+
+	/** Will setup our LookAtRotation var if we are not the owner of the pawn */
+	UFUNCTION(NetMulticast, Reliable)
+		void SetLookRotation(FRotator Rotation);
+
+	/** Called on health changed */
+	UFUNCTION()
+		void OnHealthChanged(USHealthComponent* HealthComponent, float Health, float HealthDelta, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser);
+
+
+	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
+		float BaseTurnRate;
+
+	/** Base look up/down rate, in deg/sec. Other scaling may affect final rate. */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
+		float BaseLookUpRate;
     
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
-    UCameraComponent* CameraComp;
-    
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
-    USpringArmComponent* SpringArmComp;
+	/** Camera component */
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
+		UCameraComponent* CameraComp;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components")
-	USHealthComponent* HealthComp;
+	/** Health component */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+		USHealthComponent* HealthComp;
 
-	bool bWantsToZoom;
+	/** Is set to true when the player asks to zoom in */
+	UPROPERTY(Replicated, BlueprintReadOnly)
+		bool bWantsToZoom;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Player")
-	float ZoomedFOV;
+	/** Is set to true when the player is firing */
+	UPROPERTY(Replicated, BlueprintReadOnly)
+		bool bIsFiring;
 
-	/* Default FOV while in play */
+	UPROPERTY(BlueprintReadWrite)
+		FRotator LookRotation;
+
+	/** Default FOV while in play */
 	float DefaultFOV;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Player", meta = (ClampMin = 0.1, ClampMax = 100))
-	float ZoomInterSpeed;
+	/** Holds the current weapon of the player */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Weapon")
+		ASWeapon* CurrentWeapon;
 
-	UPROPERTY(Replicated)
-	ASWeapon* CurrentWeapon;
-
+	/** Holds the weapon class of the player */
 	UPROPERTY(EditDefaultsOnly, Category = "Player")
-	TSubclassOf<ASWeapon> StarterWeaponClass;
+		TSubclassOf<ASWeapon> StarterWeaponClass;
 
+	/** Holds the socket name for where to attach the weapon */
 	UPROPERTY(VisibleDefaultsOnly, Category = "Player")
-	FName WeaponAttachSocketName;
+		FName WeaponAttachSocketName;
 
-	UFUNCTION()
-	void OnHealthChanged(USHealthComponent* HealthComponent, float Health, float HealthDelta, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser);
+	/** Holds the socket name for where to attach the camera */
+	UPROPERTY(VisibleDefaultsOnly, Category = "Player")
+		FName HeadAttachSocketName;
 
-	/* Pawn died */
+	/** Called on character's death */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Player")
-	bool bDied;
-
-public:	
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
-	virtual FVector GetPawnViewLocation() const override;
-
-	
-	
+		bool bDied;
 };

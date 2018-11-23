@@ -49,6 +49,7 @@ void ASWeapon::Fire()
 		ServerFire();
 	}
 	
+	
 	AActor* MyOwner = GetOwner();
 	if (MyOwner)
 	{
@@ -58,6 +59,7 @@ void ASWeapon::Fire()
 
 		FVector ShotDirection = EyeRotation.Vector();
 		FVector TraceEnd = EyeLocation + (EyeRotation.Vector() * 10000);
+		FVector HeightOffset(0.f, 0.f, 20.f);
 
 		FCollisionQueryParams QueryParams;
 		QueryParams.AddIgnoredActor(MyOwner);
@@ -70,7 +72,7 @@ void ASWeapon::Fire()
 		EPhysicalSurface SurfaceType = SurfaceType_Default;
 
 		FHitResult Hit;
-		if (GetWorld()->LineTraceSingleByChannel(Hit, EyeLocation, TraceEnd, COLLISION_WEAPON, QueryParams))
+		if (GetWorld()->LineTraceSingleByChannel(Hit, MeshComp->GetSocketLocation(MuzzleSocketName) + HeightOffset, TraceEnd, COLLISION_WEAPON, QueryParams))
 		{
 			// Blocking hit, process damage here
 
@@ -153,6 +155,11 @@ void ASWeapon::PlayFireEffects(FVector TracerEndPoint)
 		UGameplayStatics::SpawnEmitterAttached(MuzzleEffect, MeshComp, MuzzleSocketName);
 	}
 
+	if (SoundFire)
+	{
+		UGameplayStatics::PlaySoundAtLocation(this, SoundFire, MeshComp->GetSocketLocation(MuzzleSocketName), 0.3);
+	}
+
 	if (TracerEffect)
 	{
 		FVector MuzzleLocation = MeshComp->GetSocketLocation(MuzzleSocketName);
@@ -182,12 +189,24 @@ void ASWeapon::PlayImpactEffects(EPhysicalSurface SurfaceType, FVector ImpactPoi
 	{
 	case SURFACE_FLESHDEFAULT:
 		SelectedEffect = FleshImpactEffect;
+		if (SoundBodyHit)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, SoundBodyHit, ImpactPoint, 0.5);
+		}
 		break;
 	case SURFACE_FLESHVULNERABLE:
 		SelectedEffect = FleshImpactEffect;
+		if (SoundBodyHit)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, SoundBodyHit, ImpactPoint, 0.5);
+		}
 		break;
 	default:
 		SelectedEffect = DefaultImpactEffect;
+		if (SoundSurfaceHit)
+		{
+			UGameplayStatics::PlaySoundAtLocation(this, SoundSurfaceHit, ImpactPoint, 0.5);
+		}
 		break;
 	}
 

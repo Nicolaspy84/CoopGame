@@ -9,6 +9,7 @@
 class USkeletalMeshComponent;
 class UDamageType;
 class UParticleSystem;
+class USoundBase;
 
 // Contains info of a single hit scan weapon line trace
 USTRUCT()
@@ -23,6 +24,7 @@ public:
 
 	UPROPERTY()
 	FVector_NetQuantize TraceTo;
+
 };
 
 UCLASS()
@@ -75,6 +77,15 @@ protected:
 	TSubclassOf<UCameraShake> FireCamShake;
 
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+		USoundBase* SoundFire;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+		USoundBase* SoundBodyHit;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+		USoundBase* SoundSurfaceHit;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
 	float BaseDamage;
 
 	virtual void Fire();
@@ -99,7 +110,4 @@ protected:
 	UFUNCTION()
 	void OnRep_HitScanTrace();
 
-private:
-
-	
 };
