@@ -78,5 +78,6 @@ DerivedDataCache/*
 
 # Windows build
 WindowsNoEditor/*
+Versions/*
 
 # End of https://www.gitignore.io/api/unrealengine
