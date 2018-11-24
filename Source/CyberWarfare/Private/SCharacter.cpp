@@ -109,6 +109,7 @@ void ASCharacter::Tick(float DeltaTime)
 
 	if (Role == ROLE_Authority)
 	{
+		HealthComp->TickShield(DeltaTime);
 		SetLookRotation(GetControlRotation());
 	}
 }
