@@ -40,6 +40,9 @@ ASCharacter::ASCharacter()
 
 	// Init health component
 	HealthComp = CreateDefaultSubobject<USHealthComponent>(TEXT("HealthComp"));
+
+	// Set our bag
+	AmmoCount = 300;
 }
 
 
@@ -75,6 +78,9 @@ void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	// Bind primary fire
 	PlayerInputComponent->BindAction("PrimaryFire", IE_Pressed, this, &ASCharacter::StartFire);
 	PlayerInputComponent->BindAction("PrimaryFire", IE_Released, this, &ASCharacter::StopFire);
+
+	// Bind reload
+	PlayerInputComponent->BindAction("Reload", IE_Pressed, this, &ASCharacter::Reload);
 }
 
 
@@ -82,8 +88,6 @@ void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 void ASCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
-	DefaultFOV = CameraComp->FieldOfView;
 
 	if (Role == ROLE_Authority)
 	{
@@ -123,6 +127,8 @@ void ASCharacter::OnHealthChanged(USHealthComponent * HealthComponent, float Hea
 		// Die
 		bDied = true;
 
+		StopFire();
+
 		GetMovementComponent()->StopMovementImmediately();
 		GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
@@ -131,6 +137,23 @@ void ASCharacter::OnHealthChanged(USHealthComponent * HealthComponent, float Hea
 		CurrentWeapon->SetLifeSpan(10.f);
 		SetLifeSpan(10.f);
 	}
+}
+
+
+int32 ASCharacter::RequestAmmos(int32 Request)
+{
+	if (Request > 0)
+	{
+		if (AmmoCount >= Request)
+		{
+			AmmoCount -= Request;
+			return Request;
+		}
+		int32 ReturnAmount = AmmoCount;
+		AmmoCount = 0;
+		return ReturnAmount;
+	}
+	return 0;
 }
 
 
@@ -169,9 +192,50 @@ void ASCharacter::EndZoom()
 }
 
 
+void ASCharacter::Reload()
+{
+	// Call server fire if we are on a client
+	if (Role < ROLE_Authority)
+	{
+		ServerReload();
+	}
+
+	// If we have a weapon attached and its clip isn't full, we can start our reload animation
+	if (CurrentWeapon && !CurrentWeapon->ClipIsFull())
+	{
+		if (bIsFiring)
+		{
+			StopFire();
+		}
+		bIsReloading = true;
+	}
+}
+
+
+void ASCharacter::ServerReload_Implementation()
+{
+	Reload();
+}
+
+
+bool ASCharacter::ServerReload_Validate()
+{
+	return true;
+}
+
+
+void ASCharacter::Reloaded()
+{
+	if (CurrentWeapon && !CurrentWeapon->ClipIsFull())
+	{
+		CurrentWeapon->Reload();
+	}
+}
+
+
 void ASCharacter::StartFire()
 {
-	if (CurrentWeapon)
+	if (CurrentWeapon && !bIsReloading)
 	{
 		bIsFiring = true;
 		CurrentWeapon->StartFire();
@@ -181,7 +245,7 @@ void ASCharacter::StartFire()
 
 void ASCharacter::StopFire()
 {
-	if (CurrentWeapon)
+	if (CurrentWeapon && bIsFiring)
 	{
 		bIsFiring = false;
 		CurrentWeapon->StopFire();
@@ -241,4 +305,5 @@ void ASCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifet
 	DOREPLIFETIME(ASCharacter, bDied);
 	DOREPLIFETIME(ASCharacter, bWantsToZoom);
 	DOREPLIFETIME(ASCharacter, bIsFiring);
+	DOREPLIFETIME(ASCharacter, bIsReloading);
 }

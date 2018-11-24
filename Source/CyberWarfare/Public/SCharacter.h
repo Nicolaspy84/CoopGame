@@ -30,6 +30,22 @@ public:
 	/** Returns the view location of the pawn (the "center" of the eyes) */
 	virtual FVector GetPawnViewLocation() const override;
 
+	/** Request a certain amount of ammo from player, and update our ammo count (will return Request if we have enough ammo, or less if we don't have enough ammo) */
+	int32 RequestAmmos(int32 Request);
+
+	/** Handles reloading */
+	void Reload();
+
+	/** This is called once the reloading animation has ended */
+	UFUNCTION(BlueprintCallable)
+		void Reloaded();
+
+	/** Handles starting fire (useful for auto weapons) */
+	void StartFire();
+
+	/** Handles ending fire (useful for auto weapons) */
+	void StopFire();
+
 protected:
 
 	// Called when the game starts or when spawned
@@ -65,12 +81,6 @@ protected:
 	/** Handles unaiming */
 	void EndZoom();
 
-	/** Handles starting fire (useful for auto weapons) */
-	void StartFire();
-
-	/** Handles ending fire (useful for auto weapons) */
-	void StopFire();
-
 	/** Will setup our LookAtRotation var if we are not the owner of the pawn */
 	UFUNCTION(NetMulticast, Reliable)
 		void SetLookRotation(FRotator Rotation);
@@ -79,15 +89,19 @@ protected:
 	UFUNCTION()
 		void OnHealthChanged(USHealthComponent* HealthComponent, float Health, float HealthDelta, const class UDamageType* DamageType, class AController* InstigatedBy, AActor* DamageCauser);
 
+	/** Server reload for server */
+	UFUNCTION(Server, Reliable, WithValidation)
+		void ServerReload();
 
+	/** Rates for looking around */
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
 		float BaseTurnRate;
-
 	/** Base look up/down rate, in deg/sec. Other scaling may affect final rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
 		float BaseLookUpRate;
     
+
 	/** Camera component */
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
 		UCameraComponent* CameraComp;
@@ -96,37 +110,42 @@ protected:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 		USHealthComponent* HealthComp;
 
+
+	/** Variables for animations */
 	/** Is set to true when the player asks to zoom in */
 	UPROPERTY(Replicated, BlueprintReadOnly)
 		bool bWantsToZoom;
-
 	/** Is set to true when the player is firing */
 	UPROPERTY(Replicated, BlueprintReadOnly)
 		bool bIsFiring;
-
+	/** Is set to true when we are reloading */
+	UPROPERTY(Replicated, BlueprintReadWrite)
+		bool bIsReloading;
+	/** Replicated controller rotation for other clients to know where this character is looking */
 	UPROPERTY(BlueprintReadWrite)
 		FRotator LookRotation;
-
-	/** Default FOV while in play */
-	float DefaultFOV;
-
-	/** Holds the current weapon of the player */
-	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Weapon")
-		ASWeapon* CurrentWeapon;
-
-	/** Holds the weapon class of the player */
-	UPROPERTY(EditDefaultsOnly, Category = "Player")
-		TSubclassOf<ASWeapon> StarterWeaponClass;
-
-	/** Holds the socket name for where to attach the weapon */
-	UPROPERTY(VisibleDefaultsOnly, Category = "Player")
-		FName WeaponAttachSocketName;
-
-	/** Holds the socket name for where to attach the camera */
-	UPROPERTY(VisibleDefaultsOnly, Category = "Player")
-		FName HeadAttachSocketName;
-
 	/** Called on character's death */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Player")
 		bool bDied;
+
+
+	/** Items that can be hold by the player */
+	/** Holds the current weapon of the player */
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Weapon")
+		ASWeapon* CurrentWeapon;
+	/** Holds the weapon class of the player */
+	UPROPERTY(EditDefaultsOnly, Category = "Player")
+		TSubclassOf<ASWeapon> StarterWeaponClass;
+	/** Holds total ammo count for the player */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "PlayerBag")
+		int32 AmmoCount;
+
+
+	/** Socket names for the player */
+	/** Holds the socket name for where to attach the weapon */
+	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
+		FName WeaponAttachSocketName;
+	/** Holds the socket name for where to attach the camera */
+	UPROPERTY(VisibleDefaultsOnly, Category = "Player")
+		FName HeadAttachSocketName;
 };

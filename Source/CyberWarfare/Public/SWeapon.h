@@ -11,7 +11,7 @@ class UDamageType;
 class UParticleSystem;
 class USoundBase;
 
-// Contains info of a single hit scan weapon line trace
+/** Contains info of a single hit scan weapon line trace */
 USTRUCT()
 struct FHitScanTrace
 {
@@ -20,94 +20,111 @@ struct FHitScanTrace
 public:
 
 	UPROPERTY()
-	TEnumAsByte<EPhysicalSurface> SurfaceType;
+		TEnumAsByte<EPhysicalSurface> SurfaceType;
 
 	UPROPERTY()
-	FVector_NetQuantize TraceTo;
+		FVector_NetQuantize TraceTo;
 
 };
+
 
 UCLASS()
 class CYBERWARFARE_API ASWeapon : public AActor
 {
 	GENERATED_BODY()
 	
-public:	
-	// Sets default values for this actor's properties
+public:
+
+	/** Sets default values for this actor's properties */
 	ASWeapon();
 
 	void StartFire();
 
 	void StopFire();
 
+	bool ClipIsFull();
+	bool ClipIsEmpty();
+
+	/** Reload function */
+	void Reload();
 
 protected:
 
+	/** Begin play */
 	virtual void BeginPlay() override;
 
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	USkeletalMeshComponent* MeshComp;
 
+	/** Locally play effects */
 	void PlayFireEffects(FVector TracerEndPoint);
-
 	void PlayImpactEffects(EPhysicalSurface SurfaceType, FVector ImpactPoint);
+	
+	
+	/** Fire functions */
+	virtual void Fire();
+	UFUNCTION(Server, Reliable, WithValidation)
+		void ServerFire();
+	UFUNCTION()
+		void OnRep_HitScanTrace();
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	TSubclassOf<UDamageType> DamageType;
 
+	/** Reload functions */
+	UFUNCTION(Server, Reliable, WithValidation)
+		void ServerReload();
+
+
+	/** Weapon mesh component */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+		USkeletalMeshComponent* MeshComp;
+
+
+	/** Weapon sockets */
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	FName MuzzleSocketName;
-
+		FName MuzzleSocketName;
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	FName TracerTargetName;
+		FName TracerTargetName;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	UParticleSystem* MuzzleEffect;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	UParticleSystem* DefaultImpactEffect;
+	/** Weapon special effects */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "WeaponEffects")
+		UParticleSystem* MuzzleEffect;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "WeaponEffects")
+		UParticleSystem* DefaultImpactEffect;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "WeaponEffects")
+		UParticleSystem* FleshImpactEffect;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "WeaponEffects")
+		UParticleSystem* TracerEffect;
+	UPROPERTY(EditDefaultsOnly, Category = "WeaponEffects")
+		TSubclassOf<UCameraShake> FireCamShake;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	UParticleSystem* FleshImpactEffect;
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
-	UParticleSystem* TracerEffect;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-	TSubclassOf<UCameraShake> FireCamShake;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+	/** Sound effects */
+	UPROPERTY(EditDefaultsOnly, Category = "WeaponSounds")
 		USoundBase* SoundFire;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+	UPROPERTY(EditDefaultsOnly, Category = "WeaponSounds")
 		USoundBase* SoundBodyHit;
-
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
+	UPROPERTY(EditDefaultsOnly, Category = "WeaponSounds")
 		USoundBase* SoundSurfaceHit;
 
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-	float BaseDamage;
 
-	virtual void Fire();
+	/** Weapon stats */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
+		TSubclassOf<UDamageType> DamageType;
+	UPROPERTY(EditDefaultsOnly, Category = "WeaponStats")
+		float BaseDamage;
+	UPROPERTY(EditDefaultsOnly, Category = "WeaponStats")
+		float RateOfFire;
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "WeaponStats")
+		int32 ClipCurrentSize;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "WeaponStats")
+		int32 ClipMaxSize;
 
-	UFUNCTION(Server, Reliable, WithValidation)
-	void ServerFire();
 
-	FTimerHandle TimerHandle_TimeBetweenShots;
-
-	float LastFireTime;
-	
-	/* RPM - Bullets per minute fired by weapon */
-	UPROPERTY(EditDefaultsOnly, Category = "Weapon")
-	float RateOfFire;
-
-	// Derived from rate of fire
-	float TimeBetweenShots;
-
+	/** Utilities for replication */
 	UPROPERTY(ReplicatedUsing = OnRep_HitScanTrace)
-	FHitScanTrace HitScanTrace;
+		FHitScanTrace HitScanTrace;
 
-	UFUNCTION()
-	void OnRep_HitScanTrace();
-
+	/** Times and timers for weapon fire */
+	float TimeBetweenShots;
+	float LastFireTime;
+	FTimerHandle TimerHandle_TimeBetweenShots;
 };

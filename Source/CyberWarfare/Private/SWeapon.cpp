@@ -10,6 +10,7 @@
 #include "PhysicalMaterials/PhysicalMaterial.h"
 #include "TimerManager.h"
 #include "Net/UnrealNetwork.h"
+#include "SCharacter.h"
 
 
 static int32 DebugWeaponDrawing = 0;
@@ -20,10 +21,9 @@ FAutoConsoleVariableRef CVARDebugWeaponDrawing(
 	ECVF_Cheat);
 
 
-// Sets default values
+// Constructor
 ASWeapon::ASWeapon()
 {
-
 	MeshComp = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("MeshComp"));
 	RootComponent = MeshComp;
 
@@ -31,25 +31,49 @@ ASWeapon::ASWeapon()
 	TracerTargetName = "Target";
 
 	BaseDamage = 20.f;
-
 	RateOfFire = 600;
-
-	SetReplicates(true);
+	ClipMaxSize = 30;
 
 	NetUpdateFrequency = 66.f;
 	MinNetUpdateFrequency = 33.f;
+
+	SetReplicates(true);
 }
 
+
+// Begin play
+void ASWeapon::BeginPlay()
+{
+	Super::BeginPlay();
+
+	ClipCurrentSize = ClipMaxSize;
+	TimeBetweenShots = 60 / RateOfFire;
+}
+
+
+// Fire function
 void ASWeapon::Fire()
 {
-	// Trace the world from pawn's eyes to cross hair location
+	if (ClipCurrentSize <= 0)
+	{
+		ASCharacter* MyOwner = Cast<ASCharacter>(GetOwner());
+		if (MyOwner)
+		{
+			MyOwner->Reload();
+		}
+		return;
+	}
 
+	ClipCurrentSize--;
+
+
+	// Call server fire if we are on a client
 	if (Role < ROLE_Authority)
 	{
 		ServerFire();
 	}
 	
-	
+	// Get owner of weapon
 	AActor* MyOwner = GetOwner();
 	if (MyOwner)
 	{
@@ -98,7 +122,6 @@ void ASWeapon::Fire()
 			DrawDebugLine(GetWorld(), EyeLocation, TraceEnd, FColor::White, false, 1.0f, 0, 1.0f);
 		}
 		
-
 		PlayFireEffects(TracerEndPoint);
 
 		if (Role == ROLE_Authority)
@@ -108,9 +131,9 @@ void ASWeapon::Fire()
 		}
 
 		LastFireTime = GetWorld()->TimeSeconds;
-		
 	}
 }
+
 
 void ASWeapon::OnRep_HitScanTrace()
 {
@@ -119,15 +142,18 @@ void ASWeapon::OnRep_HitScanTrace()
 	PlayImpactEffects(HitScanTrace.SurfaceType, HitScanTrace.TraceTo);
 }
 
+
 void ASWeapon::ServerFire_Implementation()
 {
 	Fire();
 }
 
+
 bool ASWeapon::ServerFire_Validate()
 {
 	return true;
 }
+
 
 void ASWeapon::StartFire()
 {
@@ -136,18 +162,68 @@ void ASWeapon::StartFire()
 	GetWorldTimerManager().SetTimer(TimerHandle_TimeBetweenShots, this, &ASWeapon::Fire, TimeBetweenShots, true, FirstDelay);
 }
 
+
 void ASWeapon::StopFire()
 {
 	GetWorldTimerManager().ClearTimer(TimerHandle_TimeBetweenShots);
 }
 
-void ASWeapon::BeginPlay()
-{
-	Super::BeginPlay();
 
-	TimeBetweenShots = 60 / RateOfFire;
+bool ASWeapon::ClipIsFull()
+{
+	if (ClipCurrentSize < ClipMaxSize)
+	{
+		return false;
+	}
+	return true;
 }
 
+
+bool ASWeapon::ClipIsEmpty()
+{
+	if (ClipCurrentSize <= 0)
+	{
+		return true;
+	}
+	return false;
+}
+
+
+void ASWeapon::Reload()
+{
+	// Call server reload if we are on a client
+	if (Role < ROLE_Authority)
+	{
+		ServerReload();
+	}
+
+	// Get owner of weapon
+	ASCharacter* MyOwner = Cast<ASCharacter>(GetOwner());
+
+	if (MyOwner)
+	{
+		// Check how many ammos we can get to fill our clip
+		int32 NewAmmos = MyOwner->RequestAmmos(ClipMaxSize - ClipCurrentSize);
+
+		// Update our current clip
+		ClipCurrentSize += NewAmmos;
+	}
+}
+
+
+void ASWeapon::ServerReload_Implementation()
+{
+	Reload();
+}
+
+
+bool ASWeapon::ServerReload_Validate()
+{
+	return true;
+}
+
+
+// Play effects at muzzle location on fire (locally)
 void ASWeapon::PlayFireEffects(FVector TracerEndPoint)
 {
 	if (MuzzleEffect)
@@ -182,6 +258,8 @@ void ASWeapon::PlayFireEffects(FVector TracerEndPoint)
 	}
 }
 
+
+// Play effects on impact (locally)
 void ASWeapon::PlayImpactEffects(EPhysicalSurface SurfaceType, FVector ImpactPoint)
 {
 	UParticleSystem* SelectedEffect = nullptr;
@@ -219,10 +297,13 @@ void ASWeapon::PlayImpactEffects(EPhysicalSurface SurfaceType, FVector ImpactPoi
 	}
 }
 
+
+// Replicate props
 void ASWeapon::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
+	
+	DOREPLIFETIME(ASWeapon, ClipCurrentSize);
 	DOREPLIFETIME_CONDITION(ASWeapon, HitScanTrace, COND_SkipOwner);
 }
 
