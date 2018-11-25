@@ -10,6 +10,7 @@
 #include "../public/Components/SHealthComponent.h"
 #include "Net/UnrealNetwork.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
 ASCharacter::ASCharacter()
@@ -81,6 +82,10 @@ void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 
 	// Bind reload
 	PlayerInputComponent->BindAction("Reload", IE_Pressed, this, &ASCharacter::Reload);
+
+	// Bind running
+	PlayerInputComponent->BindAction("Run", IE_Pressed, this, &ASCharacter::StartRunning);
+	PlayerInputComponent->BindAction("Run", IE_Released, this, &ASCharacter::StopRunning);
 }
 
 
@@ -252,6 +257,16 @@ void ASCharacter::StopFire()
 	}
 }
 
+
+void ASCharacter::StartRunning()
+{
+	GetCharacterMovement()->MaxWalkSpeed = 800;
+}
+
+void ASCharacter::StopRunning()
+{
+	GetCharacterMovement()->MaxWalkSpeed = 500;
+}
 
 void ASCharacter::SetLookRotation_Implementation(FRotator Rotation)
 {

@@ -46,6 +46,11 @@ public:
 	/** Handles ending fire (useful for auto weapons) */
 	void StopFire();
 
+	/** Handles running */
+	void StartRunning();
+	void StopRunning();
+
+
 protected:
 
 	// Called when the game starts or when spawned
