@@ -127,4 +127,7 @@ protected:
 	float TimeBetweenShots;
 	float LastFireTime;
 	FTimerHandle TimerHandle_TimeBetweenShots;
+
+	UPROPERTY(BlueprintReadWrite, Category = "Movement")
+	bool CharacterIsRunning;
 };

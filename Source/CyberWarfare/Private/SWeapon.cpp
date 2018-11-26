@@ -55,83 +55,87 @@ void ASWeapon::BeginPlay()
 void ASWeapon::Fire()
 {
 
-	ClipCurrentSize--;
-
-
-	// Call server fire if we are on a client
-	if (Role < ROLE_Authority)
-	{
-		ServerFire();
-	}
 	
-	// Get owner of weapon
-	AActor* MyOwner = GetOwner();
-	if (MyOwner)
+	if (!CharacterIsRunning)
+
 	{
-		FVector EyeLocation;
-		FRotator EyeRotation;
-		MyOwner->GetActorEyesViewPoint(EyeLocation, EyeRotation);
+		ClipCurrentSize--;
 
-		FVector ShotDirection = EyeRotation.Vector();
-		FVector TraceEnd = EyeLocation + (EyeRotation.Vector() * 10000);
-		FVector HeightOffset(0.f, 0.f, 20.f);
-
-		FCollisionQueryParams QueryParams;
-		QueryParams.AddIgnoredActor(MyOwner);
-		QueryParams.AddIgnoredActor(this);
-		QueryParams.bTraceComplex = true;
-		QueryParams.bReturnPhysicalMaterial = true;
-
-		FVector TracerEndPoint = TraceEnd;
-
-		EPhysicalSurface SurfaceType = SurfaceType_Default;
-
-		FHitResult Hit;
-		if (GetWorld()->LineTraceSingleByChannel(Hit, MeshComp->GetSocketLocation(MuzzleSocketName) + HeightOffset, TraceEnd, COLLISION_WEAPON, QueryParams))
+		// Call server fire if we are on a client
+		if (Role < ROLE_Authority)
 		{
-			// Blocking hit, process damage here
-
-			AActor* HitActor = Hit.GetActor();
-
-			SurfaceType = UPhysicalMaterial::DetermineSurfaceType(Hit.PhysMaterial.Get());
-
-			float ActualDamage = BaseDamage;
-			if (SurfaceType == SURFACE_FLESHVULNERABLE)
-			{
-				ActualDamage *= 4.f;
-			}
-
-			UGameplayStatics::ApplyPointDamage(HitActor, ActualDamage, ShotDirection, Hit, MyOwner->GetInstigatorController(), this, DamageType);
-
-			PlayImpactEffects(SurfaceType, Hit.ImpactPoint);
-
-			TracerEndPoint = Hit.ImpactPoint;
+			ServerFire();
 		}
 
-		if (DebugWeaponDrawing > 0)
-		{
-			DrawDebugLine(GetWorld(), EyeLocation, TraceEnd, FColor::White, false, 1.0f, 0, 1.0f);
-		}
-		
-		PlayFireEffects(TracerEndPoint);
-
-		if (Role == ROLE_Authority)
-		{
-			HitScanTrace.TraceTo = TracerEndPoint;
-			HitScanTrace.SurfaceType = SurfaceType;
-		}
-
-		LastFireTime = GetWorld()->TimeSeconds;
-	}
-
-	if (ClipCurrentSize <= 0)
-	{
-		ASCharacter* MyOwner = Cast<ASCharacter>(GetOwner());
+		// Get owner of weapon
+		AActor* MyOwner = GetOwner();
 		if (MyOwner)
 		{
-			MyOwner->Reload();
+			FVector EyeLocation;
+			FRotator EyeRotation;
+			MyOwner->GetActorEyesViewPoint(EyeLocation, EyeRotation);
+
+			FVector ShotDirection = EyeRotation.Vector();
+			FVector TraceEnd = EyeLocation + (EyeRotation.Vector() * 10000);
+			FVector HeightOffset(0.f, 0.f, 20.f);
+
+			FCollisionQueryParams QueryParams;
+			QueryParams.AddIgnoredActor(MyOwner);
+			QueryParams.AddIgnoredActor(this);
+			QueryParams.bTraceComplex = true;
+			QueryParams.bReturnPhysicalMaterial = true;
+
+			FVector TracerEndPoint = TraceEnd;
+
+			EPhysicalSurface SurfaceType = SurfaceType_Default;
+
+			FHitResult Hit;
+			if (GetWorld()->LineTraceSingleByChannel(Hit, MeshComp->GetSocketLocation(MuzzleSocketName) + HeightOffset, TraceEnd, COLLISION_WEAPON, QueryParams))
+			{
+				// Blocking hit, process damage here
+
+				AActor* HitActor = Hit.GetActor();
+
+				SurfaceType = UPhysicalMaterial::DetermineSurfaceType(Hit.PhysMaterial.Get());
+
+				float ActualDamage = BaseDamage;
+				if (SurfaceType == SURFACE_FLESHVULNERABLE)
+				{
+					ActualDamage *= 4.f;
+				}
+
+				UGameplayStatics::ApplyPointDamage(HitActor, ActualDamage, ShotDirection, Hit, MyOwner->GetInstigatorController(), this, DamageType);
+
+				PlayImpactEffects(SurfaceType, Hit.ImpactPoint);
+
+				TracerEndPoint = Hit.ImpactPoint;
+			}
+
+			if (DebugWeaponDrawing > 0)
+			{
+				DrawDebugLine(GetWorld(), EyeLocation, TraceEnd, FColor::White, false, 1.0f, 0, 1.0f);
+			}
+
+			PlayFireEffects(TracerEndPoint);
+
+			if (Role == ROLE_Authority)
+			{
+				HitScanTrace.TraceTo = TracerEndPoint;
+				HitScanTrace.SurfaceType = SurfaceType;
+			}
+
+			LastFireTime = GetWorld()->TimeSeconds;
 		}
-		return;
+
+		if (ClipCurrentSize <= 0)
+		{
+			ASCharacter* MyOwner = Cast<ASCharacter>(GetOwner());
+			if (MyOwner)
+			{
+				MyOwner->Reload();
+			}
+			return;
+		}
 	}
 
 }
