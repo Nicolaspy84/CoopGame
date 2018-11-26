@@ -54,6 +54,15 @@ void ASWeapon::BeginPlay()
 // Fire function
 void ASWeapon::Fire()
 {
+	if (ClipCurrentSize <= 0)
+	{
+		ASCharacter* MyOwner = Cast<ASCharacter>(GetOwner());
+		if (MyOwner)
+		{
+			MyOwner->Reload();
+		}
+		return;
+	}
 
 	ClipCurrentSize--;
 
@@ -123,17 +132,6 @@ void ASWeapon::Fire()
 
 		LastFireTime = GetWorld()->TimeSeconds;
 	}
-
-	if (ClipCurrentSize <= 0)
-	{
-		ASCharacter* MyOwner = Cast<ASCharacter>(GetOwner());
-		if (MyOwner)
-		{
-			MyOwner->Reload();
-		}
-		return;
-	}
-
 }
 
 
