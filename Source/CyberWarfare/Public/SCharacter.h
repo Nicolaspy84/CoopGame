@@ -111,6 +111,10 @@ protected:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
 		UCameraComponent* CameraComp;
 
+	/** FPS Mesh (arms) */
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, meta = (AllowPrivateAccess = "true"), Category = "Components")
+		USkeletalMeshComponent* MeshCompFPS;
+
 	/** Health component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 		USHealthComponent* HealthComp;

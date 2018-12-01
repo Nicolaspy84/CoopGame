@@ -16,7 +16,7 @@
 ASCharacter::ASCharacter()
 {
 	// Init names for sockets
-	WeaponAttachSocketName = "WeaponSocket";
+	WeaponAttachSocketName = "WeaponSocketFPS";
 	HeadAttachSocketName = "HeadSocket";
 
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
@@ -30,11 +30,15 @@ ASCharacter::ASCharacter()
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
 
-	// Attach camera to our FPS mesh
+	// Attach camera to our TPS mesh
 	// Create a CameraComponent	
 	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComp"));
 	CameraComp->bUsePawnControlRotation = true;
 	CameraComp->SetupAttachment(GetMesh(), HeadAttachSocketName);
+
+	// Attach FPSMesh to camera
+	MeshCompFPS = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("MeshCompFPS"));
+	MeshCompFPS->SetupAttachment(CameraComp);
 
 	// Enable the possibility to crouch
 	GetMovementComponent()->GetNavAgentPropertiesRef().bCanCrouch = true;
@@ -103,7 +107,7 @@ void ASCharacter::BeginPlay()
 		if (CurrentWeapon)
 		{
 			CurrentWeapon->SetOwner(this);
-			CurrentWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketName);
+			CurrentWeapon->AttachToComponent(MeshCompFPS, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketName);
 		}
 	}
 
