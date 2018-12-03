@@ -50,6 +50,21 @@ public:
 	void StartRunning();
 	void StopRunning();
 
+	/** Get / Set Character Movement */
+	UFUNCTION(BlueprintCallable)
+	float GetCharacterSpeed();
+
+	UFUNCTION(BlueprintImplementableEvent, BlueprintCallable)
+	float GetCharacterDirection();
+
+	UFUNCTION(BlueprintCallable)
+	void Pickup(ASWeapon* Actor);
+
+	UFUNCTION(BlueprintCallable)
+	void PrintInventory();
+
+
+
 
 protected:
 
@@ -98,6 +113,14 @@ protected:
 	UFUNCTION(Server, Reliable, WithValidation)
 		void ServerReload();
 
+	/** Get weapon when game starts */
+	void SpawnStartingWeapon();
+
+	UFUNCTION(Server, Reliable, WithValidation)
+		void Server_SpawnStartingWeapon();
+
+
+
 	/** Rates for looking around */
 	/** Base turn rate, in deg/sec. Other scaling may affect final turn rate. */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera)
@@ -133,6 +156,8 @@ protected:
 	/** Replicated controller rotation for other clients to know where this character is looking */
 	UPROPERTY(BlueprintReadWrite)
 		FRotator LookRotation;
+	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Movement")
+		bool bIsRunning;
 	/** Called on character's death */
 	UPROPERTY(Replicated, BlueprintReadOnly, Category = "Player")
 		bool bDied;
@@ -153,8 +178,15 @@ protected:
 	/** Socket names for the player */
 	/** Holds the socket name for where to attach the weapon */
 	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
-		FName WeaponAttachSocketName;
+		FName WeaponAttachSocketNameTPS;
+	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
+		FName WeaponAttachSocketNameFPS;
 	/** Holds the socket name for where to attach the camera */
 	UPROPERTY(VisibleDefaultsOnly, Category = "Player")
 		FName HeadAttachSocketName;
+
+	float CharacterSpeed;
+	float CharacterDirection;
+
+	TArray<ASWeapon*> Inventory;
 };

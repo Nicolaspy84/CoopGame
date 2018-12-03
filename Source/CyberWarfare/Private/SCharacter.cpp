@@ -11,12 +11,14 @@
 #include "Net/UnrealNetwork.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/StaticMeshComponent.h"
 
 // Sets default values
 ASCharacter::ASCharacter()
 {
 	// Init names for sockets
-	WeaponAttachSocketName = "WeaponSocketFPS";
+	WeaponAttachSocketNameTPS = "WeaponSocket";
+	WeaponAttachSocketNameFPS = "WeaponSocketFPS";
 	HeadAttachSocketName = "HeadSocket";
 
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
@@ -29,6 +31,11 @@ ASCharacter::ASCharacter()
 	// Set our turn rates for input
 	BaseTurnRate = 45.f;
 	BaseLookUpRate = 45.f;
+
+	FVector CharacterVelocity = GetVelocity();
+
+	CharacterSpeed = CharacterVelocity.Size();
+
 
 	// Attach camera to our TPS mesh
 	// Create a CameraComponent	
@@ -90,6 +97,10 @@ void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	// Bind running
 	PlayerInputComponent->BindAction("Run", IE_Pressed, this, &ASCharacter::StartRunning);
 	PlayerInputComponent->BindAction("Run", IE_Released, this, &ASCharacter::StopRunning);
+	PlayerInputComponent->BindAction("StopMovingForward", IE_Released, this, &ASCharacter::StopRunning);
+
+	// Bind pick-up
+	
 }
 
 
@@ -98,17 +109,21 @@ void ASCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (Role == ROLE_Authority)
+	SpawnStartingWeapon();
+
+	if (CurrentWeapon)
 	{
-		// Spawn a default weapon
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		CurrentWeapon = GetWorld()->SpawnActor<ASWeapon>(StarterWeaponClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
-		if (CurrentWeapon)
+		CurrentWeapon->SetOwner(this);
+		if (IsLocallyControlled())
 		{
-			CurrentWeapon->SetOwner(this);
-			CurrentWeapon->AttachToComponent(MeshCompFPS, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketName);
+			CurrentWeapon->AttachToComponent(MeshCompFPS, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketNameFPS);
 		}
+
+		else
+		{
+			CurrentWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketNameTPS);
+		}
+
 	}
 
 	HealthComp->OnHealthChanged.AddDynamic(this, &ASCharacter::OnHealthChanged);
@@ -148,6 +163,36 @@ void ASCharacter::OnHealthChanged(USHealthComponent * HealthComponent, float Hea
 	}
 }
 
+
+void ASCharacter::SpawnStartingWeapon()
+{
+	
+	if (Role < ROLE_Authority)
+
+	{
+		Server_SpawnStartingWeapon();
+	}
+
+
+	else
+	{
+		// Spawn a default weapon
+		FActorSpawnParameters SpawnParams;
+		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+		CurrentWeapon = GetWorld()->SpawnActor<ASWeapon>(StarterWeaponClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+	}
+}
+
+
+void ASCharacter::Server_SpawnStartingWeapon_Implementation()
+{
+	SpawnStartingWeapon();
+}
+
+bool ASCharacter::Server_SpawnStartingWeapon_Validate()
+{
+	return true;
+}
 
 int32 ASCharacter::RequestAmmos(int32 Request)
 {
@@ -263,13 +308,39 @@ void ASCharacter::StopFire()
 
 
 void ASCharacter::StartRunning()
-{
-	GetCharacterMovement()->MaxWalkSpeed = 800;
+{	
+	bIsRunning = true;
+
+	if (GetCharacterDirection()<45.0f && GetCharacterDirection()>-45.0f)
+	{
+		GetCharacterMovement()->MaxWalkSpeed = 800;
+	}
 }
 
 void ASCharacter::StopRunning()
 {
+	bIsRunning = false;
 	GetCharacterMovement()->MaxWalkSpeed = 500;
+}
+
+
+
+
+float ASCharacter::GetCharacterSpeed()
+{
+	return(CharacterSpeed);
+}
+
+void ASCharacter::Pickup(ASWeapon* Actor)
+{
+	
+}
+
+void ASCharacter::PrintInventory()
+{
+	FString sInventory = "";
+
+
 }
 
 void ASCharacter::SetLookRotation_Implementation(FRotator Rotation)
