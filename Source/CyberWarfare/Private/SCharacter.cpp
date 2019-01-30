@@ -19,6 +19,8 @@ ASCharacter::ASCharacter()
 	// Init names for sockets
 	WeaponAttachSocketNameTPS = "WeaponSocket";
 	WeaponAttachSocketNameFPS = "WeaponSocketFPS";
+	WeaponBackSocketNameTPS = "WeaponBackSocketTPS";
+	WeaponBackSocketNameFPS = "WeaponBackSocketFPS";
 	HeadAttachSocketName = "HeadSocket";
 
 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
@@ -55,6 +57,9 @@ ASCharacter::ASCharacter()
 
 	// Set our bag
 	AmmoCount = 300;
+
+	InventorySize = 4;
+
 }
 
 
@@ -99,7 +104,9 @@ void ASCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponen
 	PlayerInputComponent->BindAction("Run", IE_Released, this, &ASCharacter::StopRunning);
 	PlayerInputComponent->BindAction("StopMovingForward", IE_Released, this, &ASCharacter::StopRunning);
 
-	// Bind pick-up
+	// Bind Equipment Switch
+	PlayerInputComponent->BindAction("NextWeapon", IE_Pressed, this, &ASCharacter::NextWeapon);
+	PlayerInputComponent->BindAction("PreviousWeapon", IE_Pressed, this, &ASCharacter::PreviousWeapon);
 	
 }
 
@@ -109,22 +116,15 @@ void ASCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	SpawnStartingWeapon();
+	SpawnInventory(); 
 
-	if (CurrentWeapon)
-	{
-		CurrentWeapon->SetOwner(this);
-		if (IsLocallyControlled())
-		{
-			CurrentWeapon->AttachToComponent(MeshCompFPS, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketNameFPS);
-		}
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-		else
-		{
-			CurrentWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketNameTPS);
-		}
-
-	}
+	NewWeapon = Inventory[0];
+	CurrentInventoryIndex = 0;
+	
+	EquipNewWeapon();
 
 	HealthComp->OnHealthChanged.AddDynamic(this, &ASCharacter::OnHealthChanged);
 }
@@ -164,13 +164,13 @@ void ASCharacter::OnHealthChanged(USHealthComponent * HealthComponent, float Hea
 }
 
 
-void ASCharacter::SpawnStartingWeapon()
+void ASCharacter::SpawnInventory()
 {
 	
 	if (Role < ROLE_Authority)
 
 	{
-		Server_SpawnStartingWeapon();
+		Server_SpawnInventory();
 	}
 
 
@@ -179,19 +179,83 @@ void ASCharacter::SpawnStartingWeapon()
 		// Spawn a default weapon
 		FActorSpawnParameters SpawnParams;
 		SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
-		CurrentWeapon = GetWorld()->SpawnActor<ASWeapon>(StarterWeaponClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+
+		Inventory.Add(GetWorld()->SpawnActor<ASWeapon>(StarterWeaponClass2Test, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams));
+
+		for (int i=1; i<=InventorySize-1; i++)
+		{
+			Inventory.Add(GetWorld()->SpawnActor<ASWeapon>(StarterWeaponClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams));
+		}
 	}
 }
 
 
-void ASCharacter::Server_SpawnStartingWeapon_Implementation()
+void ASCharacter::Server_SpawnInventory_Implementation()
 {
-	SpawnStartingWeapon();
+	SpawnInventory();
 }
 
-bool ASCharacter::Server_SpawnStartingWeapon_Validate()
+bool ASCharacter::Server_SpawnInventory_Validate()
 {
 	return true;
+} 
+
+void ASCharacter::NextWeapon()
+{
+	CurrentInventoryIndex = (CurrentInventoryIndex + 1) % (InventorySize);
+	NewWeapon = Inventory[CurrentInventoryIndex];
+	EquipNewWeapon();
+}
+
+void ASCharacter::PreviousWeapon()
+{
+	CurrentInventoryIndex = (CurrentInventoryIndex + InventorySize - 1) % (InventorySize);
+	NewWeapon = Inventory[CurrentInventoryIndex];
+	EquipNewWeapon();
+}
+
+void ASCharacter::EquipNewWeapon()
+{
+	//Detach Current Weapon
+	if (CurrentWeapon)
+	{
+		CurrentWeapon->SetOwner(this);
+		if (IsLocallyControlled())
+		{
+			CurrentWeapon->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		}
+
+		else
+		{
+			CurrentWeapon->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		}
+
+		CurrentWeapon->SetActorHiddenInGame(true);
+		CurrentWeapon->SetActorEnableCollision(false);
+		CurrentWeapon->SetActorTickEnabled(true);
+
+	}
+
+	// Attach New Weapon
+	if (NewWeapon)
+	{
+		NewWeapon->SetOwner(this);
+		if (IsLocallyControlled())
+		{
+			NewWeapon->AttachToComponent(MeshCompFPS, FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketNameFPS);
+		}
+
+		else
+		{
+			NewWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponAttachSocketNameTPS);
+		}
+
+		CurrentWeapon = NewWeapon;
+		CurrentWeapon->SetActorHiddenInGame(false);
+		CurrentWeapon->SetActorEnableCollision(true);
+		CurrentWeapon->SetActorTickEnabled(false);
+
+	}
 }
 
 int32 ASCharacter::RequestAmmos(int32 Request)
@@ -262,6 +326,7 @@ void ASCharacter::Reload()
 			StopFire();
 		}
 		bIsReloading = true;
+		ReloadingWeapon = CurrentWeapon;
 	}
 }
 
@@ -278,11 +343,15 @@ bool ASCharacter::ServerReload_Validate()
 }
 
 
-void ASCharacter::Reloaded()
+void ASCharacter::Reload_AnimationFinished(ASWeapon* ReloadingWeapon)
 {
-	if (CurrentWeapon && !CurrentWeapon->ClipIsFull())
+	if (CurrentWeapon && !CurrentWeapon->ClipIsFull() && ReloadingWeapon==CurrentWeapon)
 	{
 		CurrentWeapon->Reload();
+	}
+	else
+	{
+		bIsReloading = false;
 	}
 }
 
@@ -341,6 +410,13 @@ void ASCharacter::PrintInventory()
 	FString sInventory = "";
 
 
+}
+
+
+
+ASWeapon* ASCharacter::GetCurrentWeapon()
+{
+	return (CurrentWeapon);
 }
 
 void ASCharacter::SetLookRotation_Implementation(FRotator Rotation)
