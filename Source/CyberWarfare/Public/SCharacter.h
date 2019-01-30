@@ -38,7 +38,7 @@ public:
 
 	/** This is called once the reloading animation has ended */
 	UFUNCTION(BlueprintCallable)
-		void Reloaded();
+		void Reload_AnimationFinished(ASWeapon* ReloadingWeapon);
 
 	/** Handles starting fire (useful for auto weapons) */
 	void StartFire();
@@ -63,7 +63,8 @@ public:
 	UFUNCTION(BlueprintCallable)
 	void PrintInventory();
 
-
+	UFUNCTION(BlueprintCallable)
+	ASWeapon* GetCurrentWeapon();
 
 
 protected:
@@ -112,13 +113,6 @@ protected:
 	/** Server reload for server */
 	UFUNCTION(Server, Reliable, WithValidation)
 		void ServerReload();
-
-	/** Get weapon when game starts */
-	void SpawnStartingWeapon();
-
-	UFUNCTION(Server, Reliable, WithValidation)
-		void Server_SpawnStartingWeapon();
-
 
 
 	/** Rates for looking around */
@@ -170,9 +164,14 @@ protected:
 	/** Holds the weapon class of the player */
 	UPROPERTY(EditDefaultsOnly, Category = "Player")
 		TSubclassOf<ASWeapon> StarterWeaponClass;
+	UPROPERTY(EditDefaultsOnly, Category = "Player")
+		TSubclassOf<ASWeapon> StarterWeaponClass2Test;
 	/** Holds total ammo count for the player */
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "PlayerBag")
 		int32 AmmoCount;
+	/** Is the weapon wielded when Reload() is called */
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon")
+		ASWeapon* ReloadingWeapon;
 
 
 	/** Socket names for the player */
@@ -181,6 +180,11 @@ protected:
 		FName WeaponAttachSocketNameTPS;
 	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
 		FName WeaponAttachSocketNameFPS;
+	/** Holds the socket name for where to attach unused weapon on the back */
+	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
+		FName WeaponBackSocketNameTPS;
+	UPROPERTY(VisibleDefaultsOnly, Category = "Weapon")
+		FName WeaponBackSocketNameFPS;
 	/** Holds the socket name for where to attach the camera */
 	UPROPERTY(VisibleDefaultsOnly, Category = "Player")
 		FName HeadAttachSocketName;
@@ -188,5 +192,27 @@ protected:
 	float CharacterSpeed;
 	float CharacterDirection;
 
+
+	/** INVENTORY */
+
+
+	void SpawnInventory();
+
+	UFUNCTION(Server, Reliable, WithValidation)
+		void Server_SpawnInventory();
+
 	TArray<ASWeapon*> Inventory;
+	int InventorySize;
+	int CurrentInventoryIndex;
+
+	ASWeapon* Weapon1;
+	ASWeapon* Weapon2;
+	ASWeapon* Auxiliary1;
+	ASWeapon* Auxiliary2;
+
+	void NextWeapon();
+	void PreviousWeapon();
+
+	void EquipNewWeapon();
+	ASWeapon* NewWeapon;
 };
